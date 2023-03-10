@@ -21,7 +21,7 @@ func main() {
 	handler := handler.New(manager.NewJobManager(queue))
 
 	log.Println("Starting service - http://localhost:8080/v1/docs")
-	if err := http.ListenAndServe("localhost:8080", handler); err != nil {
+	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatal(err)
 	}
 }
