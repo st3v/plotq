@@ -98,11 +98,16 @@ func deleteJobByID(mgr JobManager) usecase.Interactor {
 
 	u := usecase.NewInteractor(func(ctx context.Context, input idInput, output *v1.Job) error {
 		job, err := mgr.DeleteJob(input.ID)
+		if err == nil && job == nil {
+			return status.Wrap(errors.New("job not found"), status.NotFound)
+		}
+
 		*output = *job
 		return err
 	})
 
 	u.SetTags(tagJobs)
+	u.SetExpectedErrors(status.NotFound)
 
 	return u
 }
