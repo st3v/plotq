@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path"
 
 	"github.com/st3v/plotq/handler"
@@ -20,8 +22,13 @@ func main() {
 
 	handler := handler.New(manager.NewJobManager(queue))
 
-	log.Println("Starting service - http://localhost:8080/v1/docs")
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Starting service - http://localhost:%s/v1/docs\n", port)
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), handler); err != nil {
 		log.Fatal(err)
 	}
 }
