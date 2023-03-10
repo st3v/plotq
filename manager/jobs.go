@@ -10,26 +10,20 @@ import (
 	"time"
 
 	v1 "github.com/st3v/plotq/api/v1"
+	"github.com/st3v/plotq/jobqueue"
 )
 
 var uploadDir = path.Join("data", "uploads")
 
-type JobQueue interface {
-	Enqueue(job *v1.Job) error
-	GetAll() ([]v1.Job, error)
-	Get(id string) (*v1.Job, error)
-	Cancel(id string) (*v1.Job, error)
-}
-
 type jobManager struct {
-	queue JobQueue
+	queue jobqueue.Queue
 }
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func NewJobManager(queue JobQueue) *jobManager {
+func NewJobManager(queue jobqueue.Queue) *jobManager {
 	return &jobManager{
 		queue: queue,
 	}

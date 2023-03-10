@@ -1,35 +1,36 @@
-package queue
+package jobqueue
 
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/beeker1121/goque"
 
 	v1 "github.com/st3v/plotq/api/v1"
 )
 
-type jobQueue struct {
+type localQueue struct {
 	q *goque.Queue
 }
 
-func NewJobQueue(dir string) (*jobQueue, error) {
-	q, err := goque.OpenQueue(dir)
+func NewLocalQueue(dataDir string) (*localQueue, error) {
+	q, err := goque.OpenQueue(filepath.Join(dataDir))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open queue: %w", err)
 	}
 
-	return &jobQueue{
+	return &localQueue{
 		q: q,
 	}, nil
 }
 
-func (q *jobQueue) Enqueue(job *v1.Job) error {
+func (q *localQueue) Enqueue(job *v1.Job) error {
 	_, err := q.q.EnqueueObjectAsJSON(job)
 	return err
 }
 
-func (q *jobQueue) GetAll() ([]v1.Job, error) {
+func (q *localQueue) GetAll() ([]v1.Job, error) {
 	jobs := []v1.Job{}
 
 	err := q.walkAllItems(func(item *goque.Item) error {
@@ -46,7 +47,7 @@ func (q *jobQueue) GetAll() ([]v1.Job, error) {
 	return jobs, err
 }
 
-func (q *jobQueue) Get(id string) (*v1.Job, error) {
+func (q *localQueue) Get(id string) (*v1.Job, error) {
 	jobs, err := q.GetAll()
 	if err != nil {
 		return nil, err
@@ -62,7 +63,7 @@ func (q *jobQueue) Get(id string) (*v1.Job, error) {
 	return nil, nil
 }
 
-func (q *jobQueue) Cancel(id string) (*v1.Job, error) {
+func (q *localQueue) Cancel(id string) (*v1.Job, error) {
 	var res *v1.Job
 
 	err := q.walkAllItems(func(item *goque.Item) error {
@@ -91,7 +92,7 @@ func (q *jobQueue) Cancel(id string) (*v1.Job, error) {
 
 var stopWalk = errors.New("stop walk")
 
-func (q *jobQueue) walkAllItems(callback func(item *goque.Item) error) error {
+func (q *localQueue) walkAllItems(callback func(item *goque.Item) error) error {
 	for i := uint64(0); i < q.q.Length(); i++ {
 		item, err := q.q.PeekByOffset(i)
 		if err != nil {

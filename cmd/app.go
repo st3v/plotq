@@ -5,17 +5,19 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/st3v/plotq/handler"
+	"github.com/st3v/plotq/jobqueue"
 	"github.com/st3v/plotq/manager"
-	"github.com/st3v/plotq/queue"
 )
 
-var queueDir = path.Join("data", "queue")
+var (
+	queueDir = filepath.Join("data", "queue")
+)
 
 func main() {
-	queue, err := queue.NewJobQueue(queueDir)
+	queue, err := jobqueue.NewLocalQueue(queueDir)
 	if err != nil {
 		log.Fatal(err)
 	}
