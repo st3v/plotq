@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
@@ -14,21 +13,29 @@ import (
 )
 
 type vpype struct {
-	cmd string
+	cmd    *exec.Cmd
+	stderr io.ReadCloser
 }
 
+// vpype implements Converter
+var _ Converter = &vpype{}
+
+// defaultVpypeCommand is the default command to use for starting vpype from PATH
 const defaultVpypeCommand = "vpype"
 
+// VpypeOption is an option for the vpype converter
 type VpypeOption func(*vpype)
 
+// VpypeCommand sets the command to use for vpype
 func VpypeCommand(cmd string) VpypeOption {
 	return func(v *vpype) {
-		v.cmd = cmd
+		v.cmd = exec.Command(cmd)
 	}
 }
 
+// Vpype returns a new converter that uses vpype
 func Vpype(opts ...VpypeOption) *vpype {
-	v := &vpype{cmd: defaultVpypeCommand}
+	v := &vpype{cmd: exec.Command(defaultVpypeCommand)}
 
 	for _, opt := range opts {
 		opt(v)
@@ -37,59 +44,79 @@ func Vpype(opts ...VpypeOption) *vpype {
 	return v
 }
 
-func (v *vpype) Convert(svg io.Reader, opts ...Option) (hpgl io.ReadCloser, err error) {
-	cfg := config(opts)
+// vpypeWriter is a writer that converts svg to hpgl
+type vpypeWriter struct {
+	svg    io.Reader
+	cmd    *exec.Cmd
+	config converterConfig
+}
 
+// vpypeWriter implements io.WriterTo
+var _ io.WriterTo = &vpypeWriter{}
+
+// Convert returns a writer that converts the svg to hpgl
+func (v *vpype) Convert(svg io.Reader, opts ...Option) io.WriterTo {
+	return &vpypeWriter{
+		svg:    svg,
+		cmd:    v.cmd,
+		config: config(opts),
+	}
+}
+
+// WriteTo converts the svg to hpgl and writes it to out
+func (w *vpypeWriter) WriteTo(out io.Writer) (int64, error) {
 	tmp, err := os.CreateTemp("", "plotq-*.svg")
 	if err != nil {
-		return nil, fmt.Errorf("could not create temporary file: %w", err)
+		return 0, fmt.Errorf("could not create temporary file: %w", err)
 	}
 	defer os.Remove(tmp.Name())
 
-	_, err = io.Copy(tmp, svg)
+	_, err = io.Copy(tmp, w.svg)
 	if err != nil {
-		return nil, fmt.Errorf("could not copy svg to temporary file: %w", err)
+		return 0, fmt.Errorf("could not copy svg to temporary file: %w", err)
 	}
 	tmp.Close()
 
-	cmd := v.command(tmp.Name(), cfg)
+	w.cmd.Args = append(w.cmd.Args, commandArgs(tmp.Name(), w.config)...)
 
-	stdoutPipe, err := cmd.StdoutPipe()
+	stdoutPipe, err := w.cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("could not get stdout pipe: %w", err)
+		return 0, fmt.Errorf("could not get stdout pipe: %w", err)
 	}
 
-	stderrPipe, err := cmd.StderrPipe()
+	stderrPipe, err := w.cmd.StderrPipe()
 	if err != nil {
-		return nil, fmt.Errorf("could not get stderr pipe: %w", err)
+		return 0, fmt.Errorf("could not get stderr pipe: %w", err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("could not start command: %w", err)
+	if err := w.cmd.Start(); err != nil {
+		return 0, fmt.Errorf("could not start command: %w", err)
 	}
 
-	stdout, err := io.ReadAll(stdoutPipe)
+	written, err := io.Copy(out, stdoutPipe)
 	if err != nil {
-		return nil, fmt.Errorf("could not read all from stdout: %w", err)
+		return written, fmt.Errorf("could not copy from stdout to out: %w", err)
 	}
 
 	stderr, err := io.ReadAll(stderrPipe)
 	if err != nil {
-		return nil, fmt.Errorf("could not read all from stderr: %w", err)
+		return written, fmt.Errorf("could not read all from stderr: %w", err)
 	}
 
-	if cmd.Wait() != nil {
+	if w.cmd.Wait() != nil {
+		// vpype prints out long tracebacks on stderr and only the last line is the actual error
 		s := bufio.NewScanner(bytes.NewReader(stderr))
 		for s.Scan() {
 			err = errors.New(s.Text())
 		}
-		return nil, fmt.Errorf("vpype %w", err)
+		return written, fmt.Errorf("vpype %w", err)
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(stdout)), nil
+	return written, nil
 }
 
-func (v *vpype) command(svg string, cfg converterConfig) *exec.Cmd {
+// commandArgs returns the arguments for the vpype command
+func commandArgs(svg string, cfg converterConfig) []string {
 	args := []string{"read", svg, "write"}
 
 	if cfg.landscape {
@@ -108,7 +135,5 @@ func (v *vpype) command(svg string, cfg converterConfig) *exec.Cmd {
 		args = append(args, "--velocity", strconv.Itoa(int(cfg.velocity)))
 	}
 
-	args = append(args, "--format", "hpgl", "-")
-
-	return exec.Command(v.cmd, args...)
+	return append(args, "--format", "hpgl", "-")
 }

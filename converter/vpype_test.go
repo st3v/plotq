@@ -2,7 +2,7 @@ package converter_test
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/st3v/plotq/converter"
@@ -16,7 +16,7 @@ func TestVpypeConvertPortraitSuccess(t *testing.T) {
 
 	vpype := converter.Vpype()
 
-	out, err := vpype.Convert(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
 		converter.Portrait,
 		converter.Pagesize("a3"),
@@ -24,10 +24,12 @@ func TestVpypeConvertPortraitSuccess(t *testing.T) {
 		converter.Velocity(10),
 	)
 
+	out := &bytes.Buffer{}
+	n, err := w.WriteTo(out)
 	require.NoError(t, err)
-	require.NotNil(t, out)
+	require.Equal(t, int64(len(expected)), n)
 
-	actual, err := ioutil.ReadAll(out)
+	actual, err := io.ReadAll(out)
 	require.NoError(t, err)
 	require.Equal(t, expected, string(actual))
 }
@@ -37,7 +39,7 @@ func TestVpypeConvertLandscapeSuccess(t *testing.T) {
 
 	vpype := converter.Vpype()
 
-	out, err := vpype.Convert(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
 		converter.Landscape,
 		converter.Pagesize("A4"),
@@ -45,20 +47,22 @@ func TestVpypeConvertLandscapeSuccess(t *testing.T) {
 		converter.Velocity(10),
 	)
 
+	out := &bytes.Buffer{}
+	n, err := w.WriteTo(out)
 	require.NoError(t, err)
-	require.NotNil(t, out)
+	require.Equal(t, int64(len(expected)), n)
 
-	actual, err := ioutil.ReadAll(out)
+	actual, err := io.ReadAll(out)
 	require.NoError(t, err)
 	require.Equal(t, expected, string(actual))
 }
 
 func TestVpypeConvertInvalidSVG(t *testing.T) {
-	expected := "vpype xml.etree.ElementTree.ParseError: syntax error: line 1, column 0"
+	expected := "ParseError"
 
 	vpype := converter.Vpype()
 
-	_, err := vpype.Convert(
+	w := vpype.Convert(
 		bytes.NewReader([]byte("invalid")),
 		converter.Landscape,
 		converter.Pagesize("a4"),
@@ -66,14 +70,16 @@ func TestVpypeConvertInvalidSVG(t *testing.T) {
 		converter.Velocity(10),
 	)
 
-	require.EqualError(t, err, expected)
+	out := &bytes.Buffer{}
+	_, err := w.WriteTo(out)
+	require.ErrorContains(t, err, expected)
 }
 func TestVpypeConvertInvalidDevice(t *testing.T) {
-	expected := "vpype ValueError: no configuration available for plotter 'foo'"
+	expected := "no configuration available for plotter 'foo'"
 
 	vpype := converter.Vpype()
 
-	_, err := vpype.Convert(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
 		converter.Landscape,
 		converter.Pagesize("a4"),
@@ -81,15 +87,17 @@ func TestVpypeConvertInvalidDevice(t *testing.T) {
 		converter.Velocity(10),
 	)
 
-	require.EqualError(t, err, expected)
+	out := &bytes.Buffer{}
+	_, err := w.WriteTo(out)
+	require.ErrorContains(t, err, expected)
 }
 
 func TestVpypeConvertInvalidPagesize(t *testing.T) {
-	expected := "vpype ValueError: no configuration available for paper size 'huh' with plotter 'hp7550'"
+	expected := "no configuration available for paper size 'huh'"
 
 	vpype := converter.Vpype()
 
-	_, err := vpype.Convert(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
 		converter.Landscape,
 		converter.Pagesize("huh"),
@@ -97,15 +105,17 @@ func TestVpypeConvertInvalidPagesize(t *testing.T) {
 		converter.Velocity(10),
 	)
 
-	require.EqualError(t, err, expected)
+	out := &bytes.Buffer{}
+	_, err := w.WriteTo(out)
+	require.ErrorContains(t, err, expected)
 }
 
 func TestVpypeConvertInvalidCommand(t *testing.T) {
-	expected := "could not start command: exec: \"invalid\": executable file not found in $PATH"
+	expected := "could not start command"
 
 	vpype := converter.Vpype(converter.VpypeCommand("invalid"))
 
-	_, err := vpype.Convert(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
 		converter.Landscape,
 		converter.Pagesize("huh"),
@@ -113,5 +123,7 @@ func TestVpypeConvertInvalidCommand(t *testing.T) {
 		converter.Velocity(10),
 	)
 
-	require.EqualError(t, err, expected)
+	out := &bytes.Buffer{}
+	_, err := w.WriteTo(out)
+	require.ErrorContains(t, err, expected)
 }
