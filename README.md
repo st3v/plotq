@@ -1,8 +1,8 @@
-# PlotterQueue
+# plotq
 
-Send job requests to HPGL plotters
+A web-based spooler for HPGL plotters.
 
-🚧 Work in Progress
+🚧 Work in Progress 🚧
 
 ## Run
 
