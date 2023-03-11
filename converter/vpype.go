@@ -1,4 +1,4 @@
-package hpgl
+package converter
 
 import (
 	"bufio"
@@ -27,7 +27,7 @@ func VpypeCommand(cmd string) VpypeOption {
 	}
 }
 
-func VpypeConverter(opts ...VpypeOption) *vpype {
+func Vpype(opts ...VpypeOption) *vpype {
 	v := &vpype{cmd: defaultVpypeCommand}
 
 	for _, opt := range opts {
@@ -37,7 +37,7 @@ func VpypeConverter(opts ...VpypeOption) *vpype {
 	return v
 }
 
-func (v *vpype) Convert(svg io.Reader, opts ...ConvertOption) (hpgl io.ReadCloser, err error) {
+func (v *vpype) Convert(svg io.Reader, opts ...Option) (hpgl io.ReadCloser, err error) {
 	cfg := config(opts)
 
 	tmp, err := os.CreateTemp("", "plotq-*.svg")
