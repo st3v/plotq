@@ -1,6 +1,7 @@
 package plotter
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -8,14 +9,16 @@ import (
 )
 
 const (
-	writeBufLen = 255
-	ack         = "OK"
+	bufLen = 255
+	ack    = "OK"
 )
 
 type feeder struct {
 	server  string
 	timeout time.Duration
 }
+
+var _ io.Writer = &feeder{}
 
 // NewFeeder creates a client for a PlotterFeeder server.
 // See https://github.com/xHain-hackspace/PlotterFeeder
@@ -27,47 +30,44 @@ func NewFeeder(addr string, opts ...Option) *feeder {
 }
 
 // Plot sends the given HPGL data to the PlotterFeeder server.
-func (f *feeder) Plot(hpgl io.Reader) error {
+func (f *feeder) Write(hpgl []byte) (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", f.server)
 	if err != nil {
-		return fmt.Errorf("could not resolve address %s: %w", f.server, err)
+		return 0, fmt.Errorf("could not resolve address %s: %w", f.server, err)
 	}
 
 	conn, err := net.DialTCP("tcp", nil, addr)
 	if err != nil {
-		return fmt.Errorf("could not connect to %s: %w", addr, err)
+		return 0, fmt.Errorf("could not connect to %s: %w", addr, err)
 	}
 	defer conn.Close()
 
 	conn.SetReadDeadline(time.Now().Add(f.timeout))
 
-	for {
-		buf := make([]byte, writeBufLen)
+	reader := bytes.NewReader(hpgl)
 
-		r, err := hpgl.Read(buf)
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return fmt.Errorf("could not read from hpgl: %w", err)
+	total := 0
+	for err != io.EOF {
+		n, err := io.CopyN(conn, reader, bufLen)
+		if err != nil && err != io.EOF {
+			return total, fmt.Errorf("could not copy to %s: %w", addr, err)
+		} else if n == 0 {
+			return total, nil
 		}
 
-		w, err := conn.Write(buf[:r])
-		if err != nil {
-			return fmt.Errorf("could not write to %s: %w", addr, err)
-		}
+		total += int(n)
 
-		if w != r {
-			return fmt.Errorf("could not write all bytes to %s: %d of %d", addr, w, r)
-		}
-
-		r, err = conn.Read(buf)
-		if err != nil {
-			return fmt.Errorf("could not read from %s: %w", addr, err)
+		buf := make([]byte, bufLen)
+		r, rerr := conn.Read(buf)
+		if rerr != nil {
+			return total, fmt.Errorf("could not read from %s: %w", addr, rerr)
 		}
 
 		got := string(buf[:r])
 		if got != ack {
-			return fmt.Errorf("server %s did not ack with %s but %s", addr, ack, got)
+			return total, fmt.Errorf("server %s did not ack with %s but %s", addr, ack, got)
 		}
 	}
+
+	return total, nil
 }

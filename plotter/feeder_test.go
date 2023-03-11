@@ -1,7 +1,6 @@
 package plotter_test
 
 import (
-	"bytes"
 	"crypto/rand"
 	"net"
 	"testing"
@@ -17,8 +16,9 @@ func TestFeederPlot(t *testing.T) {
 	server := newTestServer(t, hpgl)
 
 	feeder := plotter.NewFeeder(server.Listen())
-	err := feeder.Plot(bytes.NewReader(hpgl))
+	n, err := feeder.Write(hpgl)
 	require.NoError(t, err)
+	require.Equal(t, len(hpgl), n)
 }
 
 func TestFeederPlotLarge(t *testing.T) {
@@ -31,8 +31,9 @@ func TestFeederPlotLarge(t *testing.T) {
 	server := newTestServer(t, payload)
 
 	feeder := plotter.NewFeeder(server.Listen())
-	err = feeder.Plot(bytes.NewReader(payload))
+	n, err := feeder.Write(payload)
 	require.NoError(t, err)
+	require.Equal(t, len(payload), n)
 }
 
 func TestFeederPlotEmpty(t *testing.T) {
@@ -41,8 +42,9 @@ func TestFeederPlotEmpty(t *testing.T) {
 	server := newTestServer(t, payload)
 
 	feeder := plotter.NewFeeder(server.Listen())
-	err := feeder.Plot(bytes.NewReader(payload))
+	n, err := feeder.Write(payload)
 	require.NoError(t, err)
+	require.Equal(t, len(payload), n)
 }
 
 func TestFeederPlotInvalidAck(t *testing.T) {
@@ -50,8 +52,9 @@ func TestFeederPlotInvalidAck(t *testing.T) {
 	server.ack = "NOPE"
 
 	feeder := plotter.NewFeeder(server.Listen())
-	err := feeder.Plot(bytes.NewReader(hpgl))
+	n, err := feeder.Write(hpgl)
 	require.ErrorContains(t, err, "did not ack with OK but NOPE")
+	require.Equal(t, len(hpgl), n)
 }
 
 func TestFeederPlotTimeout(t *testing.T) {
@@ -59,8 +62,9 @@ func TestFeederPlotTimeout(t *testing.T) {
 	server.sleep = 3 * time.Second
 
 	feeder := plotter.NewFeeder(server.Listen(), plotter.WithTimeout(time.Second))
-	err := feeder.Plot(bytes.NewReader(hpgl))
+	n, err := feeder.Write(hpgl)
 	require.ErrorContains(t, err, "timeout")
+	require.Equal(t, len(hpgl), n)
 }
 
 func newTestServer(t *testing.T, expectedPayload []byte) *testserver {

@@ -1,15 +1,10 @@
 package plotter
 
 import (
-	"io"
 	"time"
 )
 
 const DefaultTimeout = time.Minute
-
-type Plotter interface {
-	Plot(hpgl io.Reader) error
-}
 
 type configOptions struct {
 	timeout time.Duration
