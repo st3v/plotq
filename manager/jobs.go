@@ -3,29 +3,27 @@ package manager
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
-	"os"
-	"path"
 	"time"
 
 	v1 "github.com/st3v/plotq/api/v1"
+	"github.com/st3v/plotq/filestore"
 	"github.com/st3v/plotq/jobqueue"
 )
 
-var uploadDir = path.Join("data", "uploads")
-
 type jobManager struct {
 	queue jobqueue.Queue
+	store filestore.Store
 }
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func NewJobManager(queue jobqueue.Queue) *jobManager {
+func NewJobManager(queue jobqueue.Queue, svgStore filestore.Store) *jobManager {
 	return &jobManager{
 		queue: queue,
+		store: svgStore,
 	}
 }
 
@@ -37,7 +35,7 @@ func (m *jobManager) SubmitRequest(request *v1.JobRequest) (*v1.Job, error) {
 	request.SetDefaults()
 
 	id := newID(request.Plotter)
-	path, err := storeSVG(id, request)
+	path, err := m.storeSVG(id, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store SVG: %w", err)
 	}
@@ -76,6 +74,27 @@ func (m *jobManager) DeleteJob(id string) (*v1.Job, error) {
 	return m.queue.Cancel(id)
 }
 
+func (m *jobManager) storeSVG(id string, request *v1.JobRequest) (string, error) {
+	svg, err := request.SVG.Open()
+	if err != nil {
+		return "", fmt.Errorf("could not open file %s: %w", request.SVG.Filename, err)
+	}
+	defer svg.Close()
+
+	path := fmt.Sprintf("%s.svg", id)
+
+	written, err := m.store.Put(path, svg)
+	if err != nil {
+		return "", err
+	}
+
+	if written != request.SVG.Size {
+		return "", errors.New("size mismatch")
+	}
+
+	return path, nil
+}
+
 const alphanumeric = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 func randString(n int) string {
@@ -88,36 +107,4 @@ func randString(n int) string {
 
 func newID(prefix string) string {
 	return fmt.Sprintf("%s-%s", prefix, randString(8))
-}
-
-func storeSVG(id string, request *v1.JobRequest) (string, error) {
-	err := os.MkdirAll(uploadDir, 0755)
-	if err != nil {
-		return "", fmt.Errorf("could not create directory %s: %w", uploadDir, err)
-	}
-
-	path := path.Join(uploadDir, fmt.Sprintf("%s.svg", id))
-
-	store, err := os.Create(path)
-	if err != nil {
-		return "", fmt.Errorf("could not create file %s: %w", path, err)
-	}
-	defer store.Close()
-
-	upload, err := request.SVG.Open()
-	if err != nil {
-		return "", fmt.Errorf("could not open file %s: %w", request.SVG.Filename, err)
-	}
-	defer upload.Close()
-
-	size, err := io.Copy(store, upload)
-	if err != nil {
-		return "", fmt.Errorf("could not copy file %s: %w", request.SVG.Filename, err)
-	}
-
-	if size != request.SVG.Size {
-		return "", errors.New("size mismatch")
-	}
-
-	return path, nil
 }
