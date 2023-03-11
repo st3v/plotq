@@ -11,6 +11,10 @@ type local struct {
 	dir string
 }
 
+// local implements Store
+var _ Store = &local{}
+
+// NewLocalStore returns a new local file store
 func NewLocalStore(dataDir string) (*local, error) {
 	err := os.MkdirAll(dataDir, 0755)
 	if err != nil {
@@ -20,6 +24,7 @@ func NewLocalStore(dataDir string) (*local, error) {
 	return &local{dir: dataDir}, nil
 }
 
+// Put writes the content of src to a file with the given name
 func (l *local) Put(name string, src io.Reader) (int64, error) {
 	path := filepath.Join(l.dir, name)
 
@@ -37,6 +42,8 @@ func (l *local) Put(name string, src io.Reader) (int64, error) {
 	return written, nil
 }
 
-func (s *local) Get(name string) (io.ReadCloser, error) {
-	return nil, nil
+// Get returns a ReadCloser for the file with the given name
+func (l *local) Get(name string) (io.ReadCloser, error) {
+	path := filepath.Join(l.dir, name)
+	return os.Open(path)
 }
