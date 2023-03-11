@@ -11,7 +11,7 @@ run: build
 	./plotq
 
 test:
-	go test -v ./...
+	go test -v ./... -count=1
 
 clean:
 	rm -f ./plotq
