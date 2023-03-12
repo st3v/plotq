@@ -12,16 +12,19 @@ import (
 
 var hpgl = []byte("IN;DF;VS10;PS0;SP1;PA;PU0,10870;SP0;IN;\n")
 
-func TestFeederPlot(t *testing.T) {
+func TestPlotterWrite(t *testing.T) {
 	server := newTestServer(t, hpgl)
 
-	feeder := plotter.NewFeeder(server.Listen())
-	n, err := feeder.Write(hpgl)
+	conn, err := plotter.Connect(server.Listen())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	n, err := conn.Write(hpgl)
 	require.NoError(t, err)
 	require.Equal(t, len(hpgl), n)
 }
 
-func TestFeederPlotLarge(t *testing.T) {
+func TestPlotterWriteLarge(t *testing.T) {
 	fiveMB := 5 * 1024 * 1024
 	payload := make([]byte, fiveMB)
 	read, err := rand.Read(payload)
@@ -30,39 +33,51 @@ func TestFeederPlotLarge(t *testing.T) {
 
 	server := newTestServer(t, payload)
 
-	feeder := plotter.NewFeeder(server.Listen())
-	n, err := feeder.Write(payload)
+	conn, err := plotter.Connect(server.Listen())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	n, err := conn.Write(payload)
 	require.NoError(t, err)
 	require.Equal(t, len(payload), n)
 }
 
-func TestFeederPlotEmpty(t *testing.T) {
+func TestPlotterWriteEmpty(t *testing.T) {
 	payload := make([]byte, 0)
 
 	server := newTestServer(t, payload)
 
-	feeder := plotter.NewFeeder(server.Listen())
-	n, err := feeder.Write(payload)
+	conn, err := plotter.Connect(server.Listen())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	n, err := conn.Write(payload)
 	require.NoError(t, err)
 	require.Equal(t, len(payload), n)
 }
 
-func TestFeederPlotInvalidAck(t *testing.T) {
+func TestPlotterReadInvalidAck(t *testing.T) {
 	server := newTestServer(t, hpgl)
-	server.ack = "NOPE"
+	server.ack = "NO"
 
-	feeder := plotter.NewFeeder(server.Listen())
-	n, err := feeder.Write(hpgl)
-	require.ErrorContains(t, err, "did not ack with OK but NOPE")
+	conn, err := plotter.Connect(server.Listen())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	n, err := conn.Write(hpgl)
+	require.ErrorContains(t, err, "did not ack with OK but NO")
 	require.Equal(t, len(hpgl), n)
 }
 
-func TestFeederPlotTimeout(t *testing.T) {
+func TestPlotterTimeout(t *testing.T) {
 	server := newTestServer(t, hpgl)
 	server.sleep = 3 * time.Second
 
-	feeder := plotter.NewFeeder(server.Listen(), plotter.WithTimeout(time.Second))
-	n, err := feeder.Write(hpgl)
+	conn, err := plotter.Connect(server.Listen(), plotter.WithTimeout(time.Second))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	n, err := conn.Write(hpgl)
 	require.ErrorContains(t, err, "timeout")
 	require.Equal(t, len(hpgl), n)
 }
@@ -73,7 +88,7 @@ func newTestServer(t *testing.T, expectedPayload []byte) *testserver {
 		addr:            "localhost:3000",
 		ack:             "OK",
 		sleep:           0,
-		expectedBufLen:  255,
+		expectedBufLen:  254,
 		expectedPayload: expectedPayload,
 	}
 }
@@ -99,7 +114,7 @@ func (t *testserver) Listen() string {
 
 		read := 0
 		for {
-			buf := make([]byte, t.expectedBufLen*2)
+			buf := make([]byte, t.expectedBufLen)
 
 			n, err := conn.Read(buf)
 			if err != nil {
