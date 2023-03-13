@@ -9,19 +9,25 @@ import (
 	"time"
 
 	v1 "github.com/st3v/plotq/api/v1"
+	"github.com/st3v/plotq/converter"
 	"github.com/st3v/plotq/filestore"
 	"github.com/st3v/plotq/jobqueue"
+	"github.com/st3v/plotq/plotter"
 )
 
 const (
 	// DefaultTick is the default tick duration for the spooler to check for the next job to be processed.
 	DefaultTick = 1 * time.Second
+
+	// DefaultTimeout is the default timeout for connections to the plotter.
+	DefaultTimeout = time.Minute
 )
 
 type spooler struct {
-	queue jobqueue.Queue
-	store filestore.Store
-	tick  time.Duration
+	queue   jobqueue.Queue
+	store   filestore.Store
+	convert converter.Convert
+	tick    time.Duration
 }
 
 func init() {
@@ -29,11 +35,12 @@ func init() {
 }
 
 // NewSpooler creates a new job spooler.
-func NewSpooler(queue jobqueue.Queue, svgStore filestore.Store) *spooler {
+func NewSpooler(queue jobqueue.Queue, svgStore filestore.Store, convert converter.Convert) *spooler {
 	return &spooler{
-		queue: queue,
-		store: svgStore,
-		tick:  DefaultTick,
+		queue:   queue,
+		store:   svgStore,
+		convert: convert,
+		tick:    DefaultTick,
 	}
 }
 
@@ -45,7 +52,7 @@ func (s *spooler) SubmitRequest(request *v1.JobRequest) (*v1.Job, error) {
 
 	request.SetDefaults()
 
-	id := newID(request.Plotter)
+	id := newID()
 	path, err := s.storeSVG(id, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store SVG: %w", err)
@@ -112,6 +119,35 @@ func (s *spooler) Incoming(ctx context.Context) <-chan v1.Job {
 	return jobs
 }
 
+// Process processes a job.
+func (s *spooler) Process(job v1.Job) (sent int64, err error) {
+	file, err := s.store.Get(job.SVG)
+	if err != nil {
+		return 0, err
+	}
+
+	conn, err := plotter.Connect(job.Plotter, plotter.WithTimeout(DefaultTimeout))
+	if err != nil {
+		log.Printf("failed to connect to plotter %s: %v", job.Plotter, err)
+		return 0, err
+	}
+	defer conn.Close()
+
+	n, err := s.convert(
+		file,
+		converter.Orientation(job.Settings.Orientation),
+		converter.Device(job.Settings.Device),
+		converter.Velocity(job.Settings.Velocity),
+		converter.Pagesize(job.Settings.Pagesize),
+	).WriteTo(conn)
+
+	if err != nil {
+		return n, fmt.Errorf("failed to convert file and send to plotter: %v", err)
+	}
+
+	return n, nil
+}
+
 func (s *spooler) storeSVG(id string, request *v1.JobRequest) (string, error) {
 	svg, err := request.SVG.Open()
 	if err != nil {
@@ -143,6 +179,6 @@ func randString(n int) string {
 	return string(b)
 }
 
-func newID(prefix string) string {
-	return fmt.Sprintf("%s-%s", prefix, randString(8))
+func newID() string {
+	return randString(16)
 }

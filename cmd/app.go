@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
+	"github.com/st3v/plotq/converter"
 	"github.com/st3v/plotq/filestore"
 	"github.com/st3v/plotq/handler"
 	"github.com/st3v/plotq/jobqueue"
 	"github.com/st3v/plotq/spooler"
+	"github.com/st3v/plotq/worker"
 )
 
 var (
@@ -29,12 +32,19 @@ func main() {
 		log.Fatal(fmt.Errorf("failed to create upload file store: %w", err))
 	}
 
-	handler := handler.New(spooler.NewSpooler(queue, uploadStore))
+	converter := converter.Vpype()
+	spool := spooler.NewSpooler(queue, uploadStore, converter.Convert)
+	handler := handler.New(spool)
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go worker.Run(ctx, spool)
 
 	log.Printf("Starting service - http://localhost:%s/v1/docs\n", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), handler); err != nil {

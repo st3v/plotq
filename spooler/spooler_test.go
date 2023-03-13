@@ -8,7 +8,8 @@ import (
 	"time"
 
 	v1 "github.com/st3v/plotq/api/v1"
-	"github.com/st3v/plotq/filestore/fake"
+	fakeconverter "github.com/st3v/plotq/converter/fake"
+	fakefilestore "github.com/st3v/plotq/filestore/fake"
 	"github.com/st3v/plotq/jobqueue"
 	"github.com/st3v/plotq/spooler"
 	"github.com/st3v/plotq/testutil"
@@ -26,7 +27,8 @@ func TestJobs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	s := spooler.NewSpooler(q, &fake.Store{})
+	c := fakeconverter.Convert{}
+	s := spooler.NewSpooler(q, &fakefilestore.Store{}, c.Spy)
 	jobs := s.Incoming(ctx)
 
 	expected := make([]v1.Job, 10)
