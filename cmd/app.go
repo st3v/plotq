@@ -10,7 +10,7 @@ import (
 	"github.com/st3v/plotq/filestore"
 	"github.com/st3v/plotq/handler"
 	"github.com/st3v/plotq/jobqueue"
-	"github.com/st3v/plotq/manager"
+	"github.com/st3v/plotq/spooler"
 )
 
 var (
@@ -19,7 +19,7 @@ var (
 )
 
 func main() {
-	queue, err := jobqueue.NewLocalQueue(queueDir)
+	queue, err := jobqueue.OpenLocal(queueDir)
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to create job queue: %w", err))
 	}
@@ -29,7 +29,7 @@ func main() {
 		log.Fatal(fmt.Errorf("failed to create upload file store: %w", err))
 	}
 
-	handler := handler.New(manager.NewJobManager(queue, uploadStore))
+	handler := handler.New(spooler.NewSpooler(queue, uploadStore))
 
 	port := os.Getenv("PORT")
 	if port == "" {

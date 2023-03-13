@@ -11,10 +11,14 @@ import (
 )
 
 type localQueue struct {
-	q *goque.Queue
+	q *goque.Queue // underlying queue is thread-safe
 }
 
-func NewLocalQueue(dataDir string) (*localQueue, error) {
+// localQueue implements the Queue interface.
+var _ Queue = &localQueue{}
+
+// OpenLocal opens a local queue.
+func OpenLocal(dataDir string) (*localQueue, error) {
 	q, err := goque.OpenQueue(filepath.Join(dataDir))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open queue: %w", err)
@@ -25,18 +29,25 @@ func NewLocalQueue(dataDir string) (*localQueue, error) {
 	}, nil
 }
 
-func (q *localQueue) Enqueue(job *v1.Job) error {
-	_, err := q.q.EnqueueObjectAsJSON(job)
-	return err
+// Close closes the queue.
+func (q *localQueue) Close() error {
+	return q.q.Close()
 }
 
+// Enqueue adds the given job to the queue.
+func (q *localQueue) Enqueue(job *v1.Job) error {
+	_, err := q.q.EnqueueObjectAsJSON(job)
+	return translateGoqueError(err)
+}
+
+// GetAll returns all jobs in the queue.
 func (q *localQueue) GetAll() ([]v1.Job, error) {
 	jobs := []v1.Job{}
 
 	err := q.walkAllItems(func(item *goque.Item) error {
 		job, err := jobFromItem(item)
 		if err != nil {
-			return err
+			return translateGoqueError(err)
 		}
 
 		jobs = append(jobs, *job)
@@ -44,13 +55,14 @@ func (q *localQueue) GetAll() ([]v1.Job, error) {
 		return nil
 	})
 
-	return jobs, err
+	return jobs, translateGoqueError(err)
 }
 
+// Get returns the job with the given ID.
 func (q *localQueue) Get(id string) (*v1.Job, error) {
 	jobs, err := q.GetAll()
 	if err != nil {
-		return nil, err
+		return nil, translateGoqueError(err)
 	}
 
 	for _, job := range jobs {
@@ -63,13 +75,14 @@ func (q *localQueue) Get(id string) (*v1.Job, error) {
 	return nil, nil
 }
 
+// Cancel marks the job with the given ID as canceled.
 func (q *localQueue) Cancel(id string) (*v1.Job, error) {
 	var res *v1.Job
 
 	err := q.walkAllItems(func(item *goque.Item) error {
 		job, err := jobFromItem(item)
 		if err != nil {
-			return err
+			return translateGoqueError(err)
 		}
 
 		if job.ID != id {
@@ -87,7 +100,27 @@ func (q *localQueue) Cancel(id string) (*v1.Job, error) {
 		return stopWalk
 	})
 
-	return res, err
+	return res, translateGoqueError(err)
+}
+
+// Peek returns the next job from the queue without removing it.
+func (q *localQueue) Peek() (*v1.Job, error) {
+	item, err := q.q.Peek()
+	if err != nil {
+		return nil, translateGoqueError(err)
+	}
+
+	return jobFromItem(item)
+}
+
+// Dequeue returns the next job from the queue.
+func (q *localQueue) Dequeue() (*v1.Job, error) {
+	item, err := q.q.Dequeue()
+	if err != nil {
+		return nil, translateGoqueError(err)
+	}
+
+	return jobFromItem(item)
 }
 
 var stopWalk = errors.New("stop walk")
@@ -96,7 +129,7 @@ func (q *localQueue) walkAllItems(callback func(item *goque.Item) error) error {
 	for i := uint64(0); i < q.q.Length(); i++ {
 		item, err := q.q.PeekByOffset(i)
 		if err != nil {
-			return fmt.Errorf("failed to peek at offset %d: %w", i, err)
+			return err
 		}
 
 		if err := callback(item); err != nil {
@@ -112,7 +145,15 @@ func (q *localQueue) walkAllItems(callback func(item *goque.Item) error) error {
 func jobFromItem(item *goque.Item) (*v1.Job, error) {
 	job := &v1.Job{}
 	if err := item.ToObjectFromJSON(job); err != nil {
-		return nil, fmt.Errorf("failed to decode job: %s", string(item.Value))
+		return nil, err
 	}
 	return job, nil
+}
+
+// translateGoqueError translates goque errors to jobqueue errors.
+func translateGoqueError(err error) error {
+	if errors.Is(err, goque.ErrEmpty) {
+		return ErrQueueEmpty
+	}
+	return err
 }
