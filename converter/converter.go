@@ -2,10 +2,8 @@ package converter
 
 import "io"
 
-// Converter converts svg to hpgl
-type Converter interface {
-	Convert(svg io.Reader, opts ...Option) io.WriterTo
-}
+// ConverterFn returns an io.WriterTo that converts svg to hpgl
+type ConverterFn func(svg io.Reader, opts ...Option) io.WriterTo
 
 // Option is an option for a converter
 type Option func(c *converterConfig)

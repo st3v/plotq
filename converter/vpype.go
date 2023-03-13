@@ -17,9 +17,6 @@ type vpype struct {
 	stderr io.ReadCloser
 }
 
-// vpype implements Converter
-var _ Converter = &vpype{}
-
 // defaultVpypeCommand is the default command to use for starting vpype from PATH
 const defaultVpypeCommand = "vpype"
 
@@ -55,7 +52,7 @@ type vpypeWriter struct {
 var _ io.WriterTo = &vpypeWriter{}
 
 // Convert returns a writer that converts the svg to hpgl
-func (v *vpype) Convert(svg io.Reader, opts ...Option) io.WriterTo {
+func (v *vpype) Converter(svg io.Reader, opts ...Option) io.WriterTo {
 	return &vpypeWriter{
 		svg:    svg,
 		cmd:    v.cmd,
