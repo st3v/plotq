@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	v1 "github.com/st3v/plotq/api/v1"
 	"github.com/st3v/plotq/converter"
 	"github.com/stretchr/testify/require"
 )
@@ -16,9 +17,9 @@ func TestVpypeConvertPortraitSuccess(t *testing.T) {
 
 	vpype := converter.Vpype()
 
-	w := vpype.Converter(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
-		converter.Portrait,
+		converter.Orientation(v1.OrientationLandscape),
 		converter.Pagesize("a3"),
 		converter.Device("hp7550"),
 		converter.Velocity(10),
@@ -35,16 +36,16 @@ func TestVpypeConvertPortraitSuccess(t *testing.T) {
 }
 
 func TestVpypeConvertLandscapeSuccess(t *testing.T) {
-	expected := "IN;DF;VS10;PS4;SP1;PA;PU10870,7600;SP0;IN;\n"
+	expected := "IN;DF;PS0;SP1;PA;PU0,10870;SP0;IN;\n"
 
 	vpype := converter.Vpype()
 
-	w := vpype.Converter(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
-		converter.Landscape,
-		converter.Pagesize("A4"),
-		converter.Device("HP7550"),
-		converter.Velocity(10),
+		converter.Orientation(v1.OrientationPortrait), // converter should not use landscape
+		converter.Pagesize("A3"),                      // converter should lowercase pagesize
+		converter.Device("HP7550"),                    // converter should lowercase device
+		converter.Velocity(0),                         // converter should not set velocity of 0
 	)
 
 	out := &bytes.Buffer{}
@@ -62,9 +63,9 @@ func TestVpypeConvertInvalidSVG(t *testing.T) {
 
 	vpype := converter.Vpype()
 
-	w := vpype.Converter(
+	w := vpype.Convert(
 		bytes.NewReader([]byte("invalid")),
-		converter.Landscape,
+		converter.Orientation(v1.OrientationLandscape),
 		converter.Pagesize("a4"),
 		converter.Device("hp7550"),
 		converter.Velocity(10),
@@ -79,10 +80,10 @@ func TestVpypeConvertInvalidDevice(t *testing.T) {
 
 	vpype := converter.Vpype()
 
-	w := vpype.Converter(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
-		converter.Landscape,
-		converter.Pagesize("a4"),
+		converter.Orientation(v1.OrientationLandscape),
+		converter.Pagesize("A4"),
 		converter.Device("foo"),
 		converter.Velocity(10),
 	)
@@ -97,9 +98,9 @@ func TestVpypeConvertInvalidPagesize(t *testing.T) {
 
 	vpype := converter.Vpype()
 
-	w := vpype.Converter(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
-		converter.Landscape,
+		converter.Orientation(v1.OrientationLandscape),
 		converter.Pagesize("huh"),
 		converter.Device("hp7550"),
 		converter.Velocity(10),
@@ -115,9 +116,9 @@ func TestVpypeConvertInvalidCommand(t *testing.T) {
 
 	vpype := converter.Vpype(converter.VpypeCommand("invalid"))
 
-	w := vpype.Converter(
+	w := vpype.Convert(
 		bytes.NewReader([]byte(svg)),
-		converter.Landscape,
+		converter.Orientation(v1.OrientationLandscape),
 		converter.Pagesize("huh"),
 		converter.Device("hp7550"),
 		converter.Velocity(10),

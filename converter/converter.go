@@ -1,34 +1,41 @@
 package converter
 
-import "io"
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
 
-// ConverterFn returns an io.WriterTo that converts svg to hpgl
-type ConverterFn func(svg io.Reader, opts ...Option) io.WriterTo
+import (
+	"io"
+
+	v1 "github.com/st3v/plotq/api/v1"
+)
+
+// Convert returns an io.WriterTo that converts svg to hpgl
+//
+//counterfeiter:generate -o fake --fake-name Convert . Convert
+type Convert func(svg io.Reader, opts ...Option) io.WriterTo
 
 // Option is an option for a converter
 type Option func(c *converterConfig)
 
-// Landscape sets the converter to landscape mode
-func Landscape(c *converterConfig) {
-	c.landscape = true
-}
-
-// Portrait sets the converter to portrait mode
-func Portrait(c *converterConfig) {
-	c.landscape = false
+// Orientation sets the orientation
+func Orientation(orientation v1.Orientation) Option {
+	return func(c *converterConfig) {
+		if orientation == v1.OrientationLandscape {
+			c.landscape = true
+		}
+	}
 }
 
 // Pagesize sets the pagesize
-func Pagesize(size string) Option {
+func Pagesize(size v1.Pagesize) Option {
 	return func(c *converterConfig) {
-		c.pagesize = size
+		c.pagesize = string(size)
 	}
 }
 
 // Device sets the device
-func Device(device string) Option {
+func Device(device v1.Device) Option {
 	return func(c *converterConfig) {
-		c.device = device
+		c.device = string(device)
 	}
 }
 

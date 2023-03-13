@@ -52,7 +52,7 @@ type vpypeWriter struct {
 var _ io.WriterTo = &vpypeWriter{}
 
 // Convert returns a writer that converts the svg to hpgl
-func (v *vpype) Converter(svg io.Reader, opts ...Option) io.WriterTo {
+func (v *vpype) Convert(svg io.Reader, opts ...Option) io.WriterTo {
 	return &vpypeWriter{
 		svg:    svg,
 		cmd:    v.cmd,
@@ -128,7 +128,7 @@ func commandArgs(svg string, cfg converterConfig) []string {
 		args = append(args, "--device", strings.ToLower(cfg.device))
 	}
 
-	if cfg.velocity != 0 {
+	if cfg.velocity > 0 {
 		args = append(args, "--velocity", strconv.Itoa(int(cfg.velocity)))
 	}
 
