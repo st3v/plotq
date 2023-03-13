@@ -1,8 +1,8 @@
 package filestore
 
-import "io"
-
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+
+import "io"
 
 // Store is an interface for a file store
 //
