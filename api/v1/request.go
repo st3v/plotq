@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 	"mime/multipart"
+	"net/url"
 )
 
 type JobRequest struct {
@@ -22,6 +23,11 @@ func (r *JobRequest) Validate() error {
 
 	if r.Plotter == "" {
 		return errors.New("no plotter specified")
+	}
+
+	_, err := url.Parse(r.Plotter)
+	if err != nil {
+		return errors.New("invalid plotter network adress")
 	}
 
 	return nil

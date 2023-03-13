@@ -7,10 +7,9 @@ import (
 type Job struct {
 	ID          string      `json:"id" description:"ID is a unique string that identifies a job." example:"hp7550-5fbbd6p8"`
 	User        string      `json:"user" description:"Name of the user that submitted the plot." example:"st3v"`
-	Plotter     string      `json:"plotter" description:"Hostname of the plotter to use." example:"hp7550"`
+	Plotter     string      `json:"plotter" description:"Network address of the plotter to use." example:"hp-7550:1337"`
 	Settings    JobSettings `json:"settings" description:"Settings to use for the plot."`
 	SVG         string      `json:"svg" description:"SVG file to be plotted." example:"uploads/hp7550-5fbbd6p8.svg"`
-	HPGL        string      `json:"hpgl,omitempty" description:"Converted HPGL file." example:"plots/hp7550-5fbbd6p8.hpgl"`
 	Status      JobStatus   `json:"status" description:"Current status of the job." example:"Pending"`
 	SubmittedAt time.Time   `json:"submittedAt" description:"Time when the job was submitted."`
 	Error       string      `json:"error,omitempty" description:"Error message if the job failed." example:""`
@@ -27,8 +26,7 @@ type JobStatus string
 
 const (
 	JobStatusPending    JobStatus = "Pending"
-	JobStatusConverting JobStatus = "Converting"
-	JobStatusPlotting   JobStatus = "Plotting"
+	JobStatusProcessing JobStatus = "Processing"
 	JobStatusCanceled   JobStatus = "Canceled"
 	JobStatusSucceeded  JobStatus = "Succeeded"
 	JobStatusFailed     JobStatus = "Failed"
@@ -37,8 +35,7 @@ const (
 func (JobStatus) Enum() []interface{} {
 	return []interface{}{
 		JobStatusPending,
-		JobStatusConverting,
-		JobStatusPlotting,
+		JobStatusProcessing,
 		JobStatusCanceled,
 		JobStatusSucceeded,
 		JobStatusFailed,
