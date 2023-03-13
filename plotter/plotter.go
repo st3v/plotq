@@ -64,7 +64,6 @@ func Connect(addr string, opts ...ConnOption) (*Conn, error) {
 
 // Close closes the connection to the PlotterFeeder.
 func (c *Conn) Close() error {
-	fmt.Println("closing conn")
 	return c.conn.Close()
 }
 
